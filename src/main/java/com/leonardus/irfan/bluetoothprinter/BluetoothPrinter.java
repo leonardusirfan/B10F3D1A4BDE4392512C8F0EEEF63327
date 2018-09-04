@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-public abstract class BluetoothPrinter {
+public class BluetoothPrinter {
     /*
         BLUETOOTH PRINTER
         Library untuk menggunakan bluetooth printer. Langkah menggunakan :
