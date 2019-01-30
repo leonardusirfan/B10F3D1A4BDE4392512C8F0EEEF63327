@@ -1,8 +1,6 @@
 package com.leonardus.irfan.bluetoothprinter;
 
-import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -14,11 +12,20 @@ public class PrintFormatter {
     public static final byte[] ALIGN_RIGHT = new byte[] { 0x1b, 'a', 0x02 };
     public static final byte[] ALIGN_CENTER = new byte[] { 0x1b, 'a', 0x01 };
     public static byte[] NEW_LINE = {10};
+    public static byte[] DEFAULT_STYLE = new byte[]{(byte) 27, (byte) 64};
+
+    private static byte[] arrayOfByte1 = { 27, 33, 0 };
 
     private static String hexStr = "0123456789ABCDEF";
     private static String[] binaryArray = { "0000", "0001", "0010", "0011",
             "0100", "0101", "0110", "0111", "1000", "1001", "1010", "1011",
             "1100", "1101", "1110", "1111" };
+
+    public static byte[] getSmall(){
+        byte[] format = { 27, 33, 0 };
+        format[2] = ((byte)(0x1 | arrayOfByte1[2]));
+        return format;
+    }
 
     public static byte[] decodeBitmap(Bitmap bmp){
         int bmpWidth = bmp.getWidth();

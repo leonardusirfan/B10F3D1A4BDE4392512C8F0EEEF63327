@@ -1,5 +1,7 @@
 package com.leonardus.irfan.bluetoothprinter;
 
+import android.Manifest;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.bluetooth.BluetoothAdapter;
@@ -10,7 +12,9 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.os.Handler;
+import android.support.v4.app.ActivityCompat;
 import android.view.View;
 import android.view.Window;
 import android.widget.AdapterView;
@@ -47,6 +51,7 @@ public class BluetoothPrinter {
 
 
     private final UUID BLUETOOTH_PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
+    private final int PERMISSION_LOCATION = 901;
 
     Context context;
 
@@ -66,6 +71,7 @@ public class BluetoothPrinter {
     private Dialog dialogDevices;
     private Dialog dialogBluetooth;
     private BroadcastReceiver broadcastReceiver;
+    private IntentFilter filter;
 
     private ArrayAdapter<String> deviceAdapter;
     private List<String> listDevicesData = new ArrayList<>();
@@ -75,11 +81,22 @@ public class BluetoothPrinter {
     private List<String> listDiscoveredData = new ArrayList<>();
     private List<BluetoothDevice> listDiscovered = new ArrayList<>();
 
+    private BluetoothListener listener;
+
     public BluetoothPrinter(Context context){
         this.context = context;
     }
 
     public void startService(){
+
+        if (ActivityCompat.checkSelfPermission(context,
+                Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(context,
+                        Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            askPermission();
+            return;
+        }
+
         //Inisialisasi UI
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle("Bluetooth tidak menyala");
@@ -105,9 +122,11 @@ public class BluetoothPrinter {
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if(bluetoothAdapter == null) {
             Toast.makeText(context, "Adapter Bluetooth tidak tersedia", Toast.LENGTH_SHORT).show();
+            return;
         }
         if(!bluetoothAdapter.isEnabled()) {
             dialogBluetooth.show();
+            return;
         }
 
         //init dialog UI
@@ -119,23 +138,26 @@ public class BluetoothPrinter {
         btn_devices = dialogDevices.findViewById(R.id.btn_devices);
         progressbar = dialogDevices.findViewById(R.id.progressbar);
 
-        deviceAdapter = new ArrayAdapter<>(context, R.layout.item_devices, R.id.txt_device, listDevicesData);
+        deviceAdapter = new ArrayAdapter<>(context, R.layout.item_devices,
+                R.id.txt_device, listDevicesData);
         list_devices.setAdapter(deviceAdapter);
         list_devices.setOnItemClickListener(new DeviceClicked());
 
-        discoveredAdapter = new ArrayAdapter<>(context, R.layout.item_devices, R.id.txt_device, listDiscoveredData);
+        discoveredAdapter = new ArrayAdapter<>(context, R.layout.item_devices,
+                R.id.txt_device, listDiscoveredData);
         list_discovered.setAdapter(discoveredAdapter);
         list_discovered.setOnItemClickListener(new DiscoveredClicked());
 
-        IntentFilter filter = new IntentFilter();
+        filter = new IntentFilter();
         filter.addAction(BluetoothDevice.ACTION_FOUND);
         filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-        context.registerReceiver(broadcastReceiver, filter);
+        //context.registerReceiver(broadcastReceiver, filter);
 
         broadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
+                //System.out.println("ACTION " + action);
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                     if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
@@ -156,20 +178,25 @@ public class BluetoothPrinter {
             @Override
             public void onClick(View v) {
                 if (bluetoothAdapter.isDiscovering()) {
-
                     progressbar.setVisibility(View.GONE);
                     bluetoothAdapter.cancelDiscovery();
                     btn_devices.setText(R.string.cari_device);
                     //mBluetoothAdapter.startDiscovery();
                 }
                 else {
+                    listDiscovered.clear();
+                    listDiscoveredData.clear();
+                    discoveredAdapter.notifyDataSetChanged();
+
                     btn_devices.setText(R.string.berhenti);
                     progressbar.setVisibility(View.VISIBLE);
                     bluetoothAdapter.startDiscovery();
-                    context.registerReceiver(broadcastReceiver, new IntentFilter(BluetoothDevice.ACTION_FOUND));
+                    context.registerReceiver(broadcastReceiver, filter);
                 }
             }
         });
+
+        showDevices();
     }
 
     public void showDevices(){
@@ -219,14 +246,20 @@ public class BluetoothPrinter {
         if(objectList.length > 0) {
             for (Object device : objectList) {
                 BluetoothDevice bluetooth = (BluetoothDevice) device;
-                if(bluetooth.getUuids()[0].getUuid().equals(BLUETOOTH_PRINTER_UUID)){
-                    listDevicesData.add(bluetooth.getName() + "\n" + bluetooth.getAddress());
-                    listDevices.add(bluetooth);
+                if(bluetooth.getUuids() != null){
+                    if(bluetooth.getUuids()[0].getUuid().equals(BLUETOOTH_PRINTER_UUID)){
+                        listDevicesData.add(bluetooth.getName() + "\n" + bluetooth.getAddress());
+                        listDevices.add(bluetooth);
+                    }
                 }
             }
         }
 
         deviceAdapter.notifyDataSetChanged();
+    }
+
+    public void setListener(BluetoothListener listener){
+        this.listener = listener;
     }
 
     private void connectBluetooth() throws IOException {
@@ -238,9 +271,21 @@ public class BluetoothPrinter {
 
             beginListenForData();
 
-            Toast.makeText(context, "Device Bluetooth Printer tersambung", Toast.LENGTH_SHORT).show();
+            if(listener != null){
+                listener.onBluetoothConnected();
+            }
+            else{
+                Toast.makeText(context, "Device Bluetooth Printer tersambung", Toast.LENGTH_SHORT).show();
+            }
+
         } catch (Exception e) {
-            Toast.makeText(context, "Device Bluetooth Printer gagal tersambung", Toast.LENGTH_SHORT).show();
+            if(listener != null){
+                listener.onBluetoothFailed("Device Bluetooth Printer gagal tersambung");
+            }
+            else{
+                Toast.makeText(context, "Device Bluetooth Printer gagal tersambung", Toast.LENGTH_SHORT).show();
+            }
+
             e.printStackTrace();
         }
     }
@@ -323,6 +368,7 @@ public class BluetoothPrinter {
 
         try {
             msg += "\n";
+            outputStream.write(new byte[]{29, 33, 35 });
             outputStream.write(msg.getBytes());
         } catch (Exception e) {
             e.printStackTrace();
@@ -380,4 +426,33 @@ public class BluetoothPrinter {
         }
     }
 
+    private void askPermission(){
+        if(ActivityCompat.shouldShowRequestPermissionRationale((Activity) context, Manifest.permission.ACCESS_FINE_LOCATION) ||
+                ActivityCompat.shouldShowRequestPermissionRationale((Activity) context, Manifest.permission.ACCESS_COARSE_LOCATION)){
+
+            AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            builder.setTitle("Izin Lokasi");
+            builder.setMessage("Aplikasi membutuhkan izin lokasi untuk dapat berjalan dengan benar.");
+            builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    ActivityCompat.requestPermissions((Activity) context, new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION},
+                            PERMISSION_LOCATION);
+                }
+            });
+            builder.setCancelable(false);
+            builder.create().show();
+        }
+        else{
+            ActivityCompat.requestPermissions((Activity) context, new String[]{Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION},
+                    PERMISSION_LOCATION);
+        }
+    }
+
+    public interface BluetoothListener{
+        void onBluetoothConnected();
+        void onBluetoothFailed(String message);
+    }
 }
