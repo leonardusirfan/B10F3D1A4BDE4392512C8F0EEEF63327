@@ -13,8 +13,12 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
+import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.widget.AdapterView;
@@ -49,6 +53,7 @@ public class BluetoothPrinter {
             (ex : btPrint.stopService())
     */
 
+    private final String LOG = "bluetooth_log";
 
     private final UUID BLUETOOTH_PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
     private final int PERMISSION_LOCATION = 901;
@@ -57,8 +62,8 @@ public class BluetoothPrinter {
 
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothSocket socket;
-    BluetoothDevice bluetoothDevice;
-    OutputStream outputStream;
+    public BluetoothDevice bluetoothDevice;
+    public OutputStream outputStream;
     private InputStream inputStream;
     private ProgressBar progressbar;
     private Button btn_devices;
@@ -88,7 +93,6 @@ public class BluetoothPrinter {
     }
 
     public void startService(){
-
         if (ActivityCompat.checkSelfPermission(context,
                 Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(context,
@@ -130,11 +134,22 @@ public class BluetoothPrinter {
         }
 
         //init dialog UI
-        dialogDevices = new Dialog(context);
+        dialogDevices = new Dialog(context, R.style.CustomDialogStyle);
         dialogDevices.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialogDevices.setContentView(R.layout.popup_devices);
+
+        DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+
+        int device_TotalWidth = metrics.widthPixels;
+        int device_TotalHeight = metrics.heightPixels;
+
+        if(dialogDevices.getWindow() != null){
+            dialogDevices.getWindow().setLayout(device_TotalWidth * 80 / 100 , device_TotalHeight * 80 / 100);
+            dialogDevices.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+
         ListView list_devices = dialogDevices.findViewById(R.id.list_devices);
-        ListView list_discovered = dialogDevices.findViewById(R.id.list_discovered);
+        final ListView list_discovered = dialogDevices.findViewById(R.id.list_discovered);
         btn_devices = dialogDevices.findViewById(R.id.btn_devices);
         progressbar = dialogDevices.findViewById(R.id.progressbar);
 
@@ -151,7 +166,8 @@ public class BluetoothPrinter {
         filter = new IntentFilter();
         filter.addAction(BluetoothDevice.ACTION_FOUND);
         filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-        //context.registerReceiver(broadcastReceiver, filter);
+        filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+        context.registerReceiver(broadcastReceiver, filter);
 
         broadcastReceiver = new BroadcastReceiver() {
             @Override
@@ -161,15 +177,23 @@ public class BluetoothPrinter {
                 if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                     BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                     if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
-                        listDiscovered.add(device);
-                        listDiscoveredData.add(device.getName() + "\n" + device.getAddress());
-                        discoveredAdapter.notifyDataSetChanged();
+                        if(!listDiscovered.contains(device)){
+                            listDiscovered.add(device);
+                            listDiscoveredData.add(device.getName() + "\n" + device.getAddress());
+                            discoveredAdapter.notifyDataSetChanged();
+                        }
                     }
                 }
                 else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
                     progressbar.setVisibility(View.GONE);
                     btn_devices.setText(R.string.cari_device);
                     //Toast.makeText(context, "Pencarian Device Selesai", Toast.LENGTH_SHORT).show();
+                }
+                else if(BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action)){
+                    int state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1);
+                    if(state == BluetoothDevice.BOND_BONDED){
+                        Toast.makeText(context, "Pairing device berhasil", Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
         };
@@ -219,9 +243,11 @@ public class BluetoothPrinter {
             if (bluetoothAdapter != null) {
                 bluetoothAdapter.cancelDiscovery();
             }
+
             context.unregisterReceiver(broadcastReceiver);
         }
         catch (Exception e){
+            Log.e(LOG, e.getMessage());
             e.printStackTrace();
         }
     }
@@ -264,7 +290,9 @@ public class BluetoothPrinter {
 
     private void connectBluetooth() throws IOException {
         try {
+
             socket = bluetoothDevice.createRfcommSocketToServiceRecord(BLUETOOTH_PRINTER_UUID);
+            //socket = bluetoothDevice.createInsecureRfcommSocketToServiceRecord(BLUETOOTH_PRINTER_UUID);
             socket.connect();
             outputStream = socket.getOutputStream();
             inputStream = socket.getInputStream();
@@ -279,14 +307,28 @@ public class BluetoothPrinter {
             }
 
         } catch (Exception e) {
-            if(listener != null){
-                listener.onBluetoothFailed("Device Bluetooth Printer gagal tersambung");
-            }
-            else{
-                Toast.makeText(context, "Device Bluetooth Printer gagal tersambung", Toast.LENGTH_SHORT).show();
-            }
-
+            Log.e(LOG, e.getMessage());
             e.printStackTrace();
+            Toast.makeText(context, "Gagal menyambungkan. Coba restart bluetooth/printer anda", Toast.LENGTH_SHORT).show();
+            /*try {
+                //Fallback
+                Log.d(LOG, "fallback");
+
+                socket =(BluetoothSocket) bluetoothDevice.getClass().getMethod("createRfcommSocket", new Class[] {int.class}).invoke(bluetoothDevice,1);
+                socket.connect();
+
+            }
+            catch (Exception e2) {
+                if(listener != null){
+                    listener.onBluetoothFailed("Device Bluetooth Printer gagal tersambung");
+                }
+                else{
+                    Toast.makeText(context, "Device Bluetooth Printer gagal tersambung", Toast.LENGTH_SHORT).show();
+                }
+
+                Log.e(LOG, e2.getMessage());
+                e2.printStackTrace();
+            }*/
         }
     }
 
@@ -355,6 +397,7 @@ public class BluetoothPrinter {
             workerThread.start();
 
         } catch (Exception e) {
+            Log.e(LOG, e.getMessage());
             e.printStackTrace();
         }
     }
@@ -368,9 +411,10 @@ public class BluetoothPrinter {
 
         try {
             msg += "\n";
-            outputStream.write(new byte[]{29, 33, 35 });
+            outputStream.write(new byte[]{29, 33, 35});
             outputStream.write(msg.getBytes());
         } catch (Exception e) {
+            Log.e(LOG, e.getMessage());
             e.printStackTrace();
         }
     }
@@ -379,10 +423,17 @@ public class BluetoothPrinter {
     private void closeBT() throws IOException {
         try {
             stopWorker = true;
-            outputStream.close();
-            inputStream.close();
-            socket.close();
+            if(outputStream != null){
+                outputStream.close();
+            }
+            if(inputStream != null){
+                inputStream.close();
+            }
+            if(socket != null){
+                socket.close();
+            }
         } catch (Exception e) {
+            Log.e(LOG, e.getMessage());
             e.printStackTrace();
         }
     }
@@ -398,6 +449,7 @@ public class BluetoothPrinter {
                     dialogDevices.dismiss();
                 }
                 catch (IOException e){
+                    Log.e(LOG, e.getMessage());
                     e.printStackTrace();
                 }
             }
@@ -421,6 +473,7 @@ public class BluetoothPrinter {
                 createBond(device);
                 dialogDevices.dismiss();
             } catch (Exception e) {
+                Log.e(LOG, e.getMessage());
                 e.printStackTrace();
             }
         }
@@ -451,8 +504,21 @@ public class BluetoothPrinter {
         }
     }
 
+    public BluetoothDevice getBluetoothDevice() {
+        return bluetoothDevice;
+    }
+
+    public Context getContext() {
+        return context;
+    }
+
+    public OutputStream getOutputStream() {
+        return outputStream;
+    }
+
     public interface BluetoothListener{
         void onBluetoothConnected();
         void onBluetoothFailed(String message);
     }
+
 }

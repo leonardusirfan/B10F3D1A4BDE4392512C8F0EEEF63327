@@ -13,6 +13,8 @@ public class Transaksi {
     private double diskon;
     private List<Item> listItem;
 
+    private double dibayar;
+
     public Transaksi(String outlet, String sales, String no_nota, Date tgl_transaksi, Date jatuh_tempo, List<Item> listItem){
         this.outlet = outlet;
         this.sales = sales;

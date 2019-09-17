@@ -1,5 +1,6 @@
 package com.leonardus.irfan.bluetoothprinter;
 
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.widget.Toast;
@@ -7,6 +8,7 @@ import android.widget.Toast;
 import com.leonardus.irfan.bluetoothprinter.Model.Item;
 import com.leonardus.irfan.bluetoothprinter.Model.Transaksi;
 
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
@@ -190,7 +192,7 @@ public class NotaPrinter extends BluetoothPrinter {
         }
     }
 
-    private String[] leftAligned(String s, int max_length, int n){
+    public String[] leftAligned(String s, int max_length, int n){
         //Mencetak transaksi secara rata kiri
         String[] result = new String[n];
         int counter = 0;
@@ -211,7 +213,7 @@ public class NotaPrinter extends BluetoothPrinter {
         return result;
     }
 
-    private String[] rightAligned(String s, int max_length, int n){
+    public String[] rightAligned(String s, int max_length, int n){
         //Mencekak transaksi secara rata kanan
         String[] result = new String[n];
         int counter = 0;
@@ -242,4 +244,25 @@ public class NotaPrinter extends BluetoothPrinter {
         }
         return result;
     }
+
+    public byte[] getHeader() {
+        return header;
+    }
+
+    @Override
+    public BluetoothDevice getBluetoothDevice() {
+        return super.getBluetoothDevice();
+    }
+
+    @Override
+    public OutputStream getOutputStream() {
+        return super.getOutputStream();
+    }
+
+    @Override
+    public Context getContext() {
+        return super.getContext();
+    }
+
+
 }
