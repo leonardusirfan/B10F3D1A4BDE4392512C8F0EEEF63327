@@ -12,9 +12,8 @@ public class PrintFormatter {
     public static final byte[] ALIGN_RIGHT = new byte[] { 0x1b, 'a', 0x02 };
     public static final byte[] ALIGN_CENTER = new byte[] { 0x1b, 'a', 0x01 };
     public static byte[] NEW_LINE = {10};
-    public static byte[] DEFAULT_STYLE = new byte[]{(byte) 27, (byte) 64};
-
-    private static byte[] arrayOfByte1 = { 27, 33, 0 };
+    //public static byte[] DEFAULT_STYLE = new byte[]{(byte) 27, (byte) 64};
+    public static byte[] DEFAULT_STYLE = { 27, 33, 0 };
 
     private static String hexStr = "0123456789ABCDEF";
     private static String[] binaryArray = { "0000", "0001", "0010", "0011",
@@ -23,7 +22,10 @@ public class PrintFormatter {
 
     public static byte[] getSmall(){
         byte[] format = { 27, 33, 0 };
+        byte[] arrayOfByte1 = { 27, 33, 0 };
+
         format[2] = ((byte)(0x1 | arrayOfByte1[2]));
+
         return format;
     }
 
